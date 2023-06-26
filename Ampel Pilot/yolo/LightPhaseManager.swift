@@ -51,8 +51,8 @@ class LightPhaseManager {
         
         func speech() -> String {
             switch self {
-            case .red: return "Warte"
-            case .green: return "Es ist grün"
+            case .red: return "Wait, red light"
+            case .green: return "Go, green light"
             case .none: return ""
             }
         }
