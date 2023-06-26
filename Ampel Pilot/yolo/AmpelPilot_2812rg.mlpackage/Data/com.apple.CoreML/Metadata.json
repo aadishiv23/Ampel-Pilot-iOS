@@ -1,0 +1,6 @@
+{
+  "MLModelVersionStringKey" : "--",
+  "MLModelDescriptionKey" : "Ampel Pilot Model trained on ONLY on RG channel",
+  "MLModelAuthorKey" : "Patrick Valenta",
+  "MLModelLicenseKey" : "Public Domain"
+}

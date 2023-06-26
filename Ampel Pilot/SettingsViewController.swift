@@ -25,14 +25,16 @@ class SettingsViewController: UITableViewController {
     @IBOutlet weak var camPreviewSwitch: UISwitch!
     
     lazy var closeButton: UIBarButtonItem = {
-        let bi = UIBarButtonItem(title: "Schließen", style: UIBarButtonItemStyle.plain, target: self, action: #selector(closeBtnPressed))
+        // original title "Schließen"
+        let bi = UIBarButtonItem(title: "Close", style: UIBarButtonItemStyle.plain, target: self, action: #selector(closeBtnPressed))
         return bi
     }()
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        title = "Einstellungen"
+        // title = "Einstellungen"
+        title = "Settings"
         
         //navigationItem.rightBarButtonItems = [closeButton]
         setupViewModel()
@@ -116,7 +118,8 @@ class SettingsViewController: UITableViewController {
     private func showCapturePresetSelectionController() {
         if let vc = storyboard?.instantiateViewController(withIdentifier: "selectionVC") as? SelectionViewController {
             let cells = viewModel.availableResolutions
-            vc.viewModel = SelectionViewModel(title: "Auflösung", cells: Box(cells))
+            // original title - Auflösung
+            vc.viewModel = SelectionViewModel(title: "Resolution", cells: Box(cells))
             
             vc.viewModel.cells.bind(listener: { (cellVm) in
                 let selectedCell = cellVm.first(where: { (cellViewModel) -> Bool in

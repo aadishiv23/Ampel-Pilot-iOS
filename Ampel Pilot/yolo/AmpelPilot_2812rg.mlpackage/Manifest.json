@@ -1,0 +1,24 @@
+{
+    "fileFormatVersion": "1.0.0",
+    "itemInfoEntries": {
+        "5DC5C6E6-5DBB-4D67-8E5B-D9E31C8E5B03": {
+            "author": "com.apple.CoreML",
+            "description": "External Metadata Overlay",
+            "name": "Metadata.json",
+            "path": "com.apple.CoreML/Metadata.json"
+        },
+        "768917FC-FEB8-41DD-882A-20113576AA8D": {
+            "author": "com.apple.CoreML",
+            "description": "CoreML Model Specification",
+            "name": "AmpelPilot_2812rg.mlmodel",
+            "path": "com.apple.CoreML/AmpelPilot_2812rg.mlmodel"
+        },
+        "EAD4E875-9E01-4690-B1EC-76747901639F": {
+            "author": "com.apple.CoreML",
+            "description": "External FeatureDescription Overlay",
+            "name": "FeatureDescriptions.json",
+            "path": "com.apple.CoreML/FeatureDescriptions.json"
+        }
+    },
+    "rootModelIdentifier": "768917FC-FEB8-41DD-882A-20113576AA8D"
+}

@@ -16,7 +16,7 @@ class VisualFeedbackView: UIView {
         l.textColor = .black
         l.adjustsFontForContentSizeCategory = true
         l.translatesAutoresizingMaskIntoConstraints = false
-        l.text = "Keine Ampel erkannt"
+        l.text = "No traffic light detected" // original Keine Ampel erkannt
         l.accessibilityTraits = UIAccessibilityTraitUpdatesFrequently
         
         return l
@@ -33,13 +33,13 @@ class VisualFeedbackView: UIView {
         switch phase {
         case .green:
             backgroundColor = .green
-            phaseLabel.text = "Grün"
+            phaseLabel.text = "Green"
         case .red:
             backgroundColor = .red
-            phaseLabel.text = "Rot"
+            phaseLabel.text = "Red"
         case .none:
             backgroundColor = .clear
-            phaseLabel.text = "Keine Ampel erkannt"
+            phaseLabel.text = "No traffic light detected"
         }
     }
     

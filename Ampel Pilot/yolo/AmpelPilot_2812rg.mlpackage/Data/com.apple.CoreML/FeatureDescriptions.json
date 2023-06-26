@@ -1,0 +1,15 @@
+{
+  "Outputs" : {
+    "grid" : {
+      "MLFeatureShortDescription" : "The 13x13 grid with the bounding box data"
+    }
+  },
+  "Inputs" : {
+    "image" : {
+      "MLFeatureShortDescription" : "Input image"
+    }
+  },
+  "TrainingInputs" : {
+
+  }
+}
