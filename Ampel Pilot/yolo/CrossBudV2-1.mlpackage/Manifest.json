@@ -1,0 +1,24 @@
+{
+    "fileFormatVersion": "1.0.0",
+    "itemInfoEntries": {
+        "7CD778F1-C340-48BE-BF0B-A046FAAE17F5": {
+            "author": "com.apple.CoreML",
+            "description": "External FeatureDescription Overlay",
+            "name": "FeatureDescriptions.json",
+            "path": "com.apple.CoreML/FeatureDescriptions.json"
+        },
+        "C2C55490-77FD-411C-A6BF-AC5620F0142B": {
+            "author": "com.apple.CoreML",
+            "description": "External Metadata Overlay",
+            "name": "Metadata.json",
+            "path": "com.apple.CoreML/Metadata.json"
+        },
+        "C701AC24-50D1-4CB8-A914-B24B5807A5B6": {
+            "author": "com.apple.CoreML",
+            "description": "CoreML Model Specification",
+            "name": "CrossBudV2-1.mlmodel",
+            "path": "com.apple.CoreML/CrossBudV2-1.mlmodel"
+        }
+    },
+    "rootModelIdentifier": "C701AC24-50D1-4CB8-A914-B24B5807A5B6"
+}

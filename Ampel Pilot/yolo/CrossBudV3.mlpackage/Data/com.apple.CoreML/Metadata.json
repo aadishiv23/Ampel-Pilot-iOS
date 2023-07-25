@@ -1,0 +1,11 @@
+{
+  "MLModelDescriptionKey" : "CrossBudV2\naugmented dataset\n~1200 images\n",
+  "MLModelCreatorDefinedKey" : {
+    "com.apple.createml.app.tag" : "99.2",
+    "com.apple.createml.version" : "12.5.0",
+    "com.apple.coreml.model.preview.type" : "objectDetector",
+    "iterations" : "21005",
+    "com.apple.createml.app.version" : "4.0"
+  },
+  "MLModelAuthorKey" : "Aadi Shiv Malhotra"
+}
