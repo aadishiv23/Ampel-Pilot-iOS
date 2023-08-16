@@ -10,7 +10,7 @@ import UIKit
 import CoreML
 import Accelerate
 
-let labels = ["red", "green"]
+let labels = ["Countdown", "GO", "Go", "Stop", "Green-ped-cross-light", "Green-traffic-light", "Pedestrian-Crossing-Lights", "Red-ped-cross-light", "Red-traffic-light", "Stop", "Traffic-light"]
 
 let anchors: [Float] = [1.08, 1.19, 3.42, 4.41, 6.63, 11.38, 9.42, 5.11, 16.62, 10.52]
 

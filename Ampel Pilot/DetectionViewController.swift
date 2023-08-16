@@ -236,6 +236,12 @@ class DetectionViewController: UIViewController {
         colors.append(.red)
         colors.append(.green)
         colors.append(.blue)
+        colors.append(.blue)
+        colors.append(.brown)
+        colors.append(.cyan)
+        colors.append(.darkGray)
+        colors.append(.white)
+        colors.append(.lightGray)
     }
     
     func setupYolo() {
@@ -353,7 +359,7 @@ class DetectionViewController: UIViewController {
     func visionRequestDidComplete(request: VNRequest, error: Error?) {
         if let observations = request.results as? [VNCoreMLFeatureValueObservation],
             let features = observations.first?.featureValue.multiArrayValue {
-            let boundingBoxes = yolo.computeBoundingBoxes(boxes: features, confidences: (observations.last?.featureValue.multiArrayValue)!)
+            let boundingBoxes = yolo.computeBoundingBoxes(coordinates: features, confidences: (observations.last?.featureValue.multiArrayValue)!)
            // let boundingBoxes = yolo.computeBoundingBoxes(features: features)
             let elapsed = CACurrentMediaTime() - startTimes.remove(at: 0)
             
@@ -436,10 +442,20 @@ class DetectionViewController: UIViewController {
                 rect.origin.y += top
                 rect.size.width *= scaleX
                 rect.size.height *= scaleY
+                var label = ""
                 
                 // Show the bounding box.
-                let label = String(format: "%@ %.1f", labels[prediction.classIndex], prediction.score * 100)
-                let color = colors[prediction.classIndex]
+                if prediction.classIndex >= 0 && prediction.classIndex < labels.count {
+                    label = String(format: "%@ %.1f", labels[prediction.classIndex], prediction.score * 100)
+                    // Rest of the code
+                } else {
+                    // Handle the case where the class index is out of range
+                    label = "Error: Out of range"
+                }
+                print(colors.debugDescription)
+                print(colors.count)
+                //let color = colors[prediction.classIndex]
+                let color = UIColor.systemBlue
                 boundingBoxes[i].show(frame: rect, label: label, color: color)
             } else {
                 boundingBoxes[i].hide()

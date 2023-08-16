@@ -32,11 +32,167 @@ class YOLO {
             let boxes = boxesTensor
             let confidences = confidencesTensor
             
-            return computeBoundingBoxes(boxes: boxes, confidences: confidences)
+            return computeBoundingBoxes(coordinates: boxes, confidences: confidences)
         } else {
             return nil
         }
     }
+    public func computeBoundingBoxes(coordinates: MLMultiArray, confidences: MLMultiArray) -> [Prediction] {
+        var predictions = [Prediction]()
+        print("coordinates")
+        print(coordinates.debugDescription)
+        //print(coordinates.shape)
+        print("coordinates")
+        print(confidences.debugDescription)
+        //print(confidences.shape)
+        
+        let blockSize: Float = 32
+        let gridHeight = 13
+        let gridWidth = 13
+        let boxesPerCell = 5
+        let numClasses = 10
+        
+        let confidencePointer = UnsafeMutablePointer<Double>(OpaquePointer(confidences.dataPointer))
+        let coordinatesPointer = UnsafeMutablePointer<Double>(OpaquePointer(coordinates.dataPointer))
+        let channelStride = 1//confidences.strides[0].intValue
+        let yStride = confidences.strides[1].intValue
+        let xStride = confidences.strides[0].intValue
+        
+        func offset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
+            return channel*channelStride + y*yStride + x*xStride
+        }
+        
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    let channel = b*(numClasses + 5)
+                    var confidenceValue : Double
+                    if (confidences.count > 0) {
+                        confidenceValue = Double(confidencePointer[offset(channel, cx, cy)])
+                    }
+                    else {
+                        confidenceValue = 0
+                    }
+                    
+                    if confidenceValue <= confidenceThreshold {
+                        continue
+                    }
+                    
+                    let tx = Float(coordinatesPointer[offset(channel    , cx, cy)])
+                    let ty = Float(coordinatesPointer[offset(channel + 1, cx, cy)])
+                    let tw = Float(coordinatesPointer[offset(channel + 2, cx, cy)])
+                    let th = Float(coordinatesPointer[offset(channel + 3, cx, cy)])
+                    
+                    let x = (Float(cx) + sigmoid(tx)) * blockSize
+                    let y = (Float(cy) + sigmoid(ty)) * blockSize
+                    let w = exp(tw) * anchors[2*b    ] * blockSize
+                    let h = exp(th) * anchors[2*b + 1] * blockSize
+                    
+                    let rect = CGRect(x: CGFloat(x - w/2), y: CGFloat(y - h/2),
+                                      width: CGFloat(w), height: CGFloat(h))
+                    
+                    var classes = [Float](repeating: 0, count: numClasses)
+                    for c in 0..<numClasses {
+                        classes[c] = Float(coordinatesPointer[offset(channel + 5 + c, cx, cy)])
+                    }
+                    classes = softmax(classes)
+                    let (detectedClass, bestClassScore) = classes.argmax()
+                    let bCS = Double(bestClassScore)
+                    let confidenceInClass = bCS * confidenceValue
+                    
+                    if confidenceInClass > confidenceThreshold {
+                        let prediction = Prediction(classIndex: detectedClass,
+                                                    score: Float(confidenceInClass),
+                                                    rect: rect)
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+        return predictions
+        //return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+    }
+
+    /*public func computeBoundingBoxes(boxes: MLMultiArray, confidences: MLMultiArray) -> [Prediction] {
+        assert(boxes.shape[0].intValue == confidences.shape[0].intValue)
+        
+        var predictions = [Prediction]()
+        let numBoxes = min(boxes.shape[0].intValue / 4, confidences.shape[0].intValue)
+        
+        for boxIndex in 0..<numBoxes {
+            let xOffset = boxIndex * 4
+            let yOffset = boxIndex
+            
+            let x = CGFloat(truncating: boxes[xOffset])
+            let y = CGFloat(truncating: boxes[xOffset + 1])
+            let width = CGFloat(truncating: boxes[xOffset + 2])
+            let height = CGFloat(truncating: boxes[xOffset + 3])
+            
+            let confidence = Double(truncating: confidences[yOffset])
+            
+            let epsilon = 0.000001
+            if confidence >= (confidenceThreshold+epsilon) {
+                let rect = CGRect(x: x, y: y, width: width, height: height)
+                
+                let prediction = Prediction(classIndex: 0, score: Float(confidence), rect: rect)
+                predictions.append(prediction)
+            }
+        }
+        
+        return predictions
+    }*/
+    /*
+    public func computeBoundingBoxes(boxes: MLMultiArray, confidences: MLMultiArray) -> [Prediction] {
+        assert(boxes.shape[0].intValue == confidences.shape[0].intValue)
+        
+        var predictions = [Prediction]()
+        let blockSize: CGFloat = 32
+        let gridHeight = 13
+        let gridWidth = 13
+        let boxesPerCell = 5
+        let numClasses = 9
+        
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    
+                    let channel = b * (numClasses + 5)
+                    let xOffset = channel * gridWidth * gridHeight + cy * gridWidth + cx
+                    let yOffset = b * gridWidth * gridHeight + cy * gridWidth + cx
+                    
+                    let x = CGFloat(truncating: boxes[xOffset])
+                    let y = CGFloat(truncating: boxes[xOffset + 1])
+                    let width = CGFloat(truncating: boxes[xOffset + 2])
+                    let height = CGFloat(truncating: boxes[xOffset + 3])
+                    
+                    let confidence = Double(truncating: confidences[yOffset])
+                    
+                    let epsilon = 0.000001
+                    if confidence >= (confidenceThreshold + epsilon) {
+                        let xCenter = (CGFloat(cx) + CGFloat(sigmoid(Float(x)))) * blockSize
+                        let yCenter = (CGFloat(cy) + CGFloat(sigmoid(Float(y)))) * blockSize
+                        let rectOriginX = xCenter - width / 2
+                        let rectOriginY = yCenter - height / 2
+                        let rectWidth = width * blockSize
+                        let rectHeight = height * blockSize
+
+                        let rect = CGRect(x: rectOriginX, y: rectOriginY, width: rectWidth, height: rectHeight)
+
+                        
+                        let prediction = Prediction(
+                            classIndex: 0,
+                            score: Float(confidence),
+                            rect: rect
+                        )
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+        return predictions
+        // return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+    }*/
+
 
     func convertToDoubleArray(mlMultiArray: MLMultiArray) -> [Double] {
         let pointer = UnsafeMutablePointer<Double>(OpaquePointer(mlMultiArray.dataPointer))
@@ -115,34 +271,9 @@ class YOLO {
         return predictions
     }*/
     
-    public func computeBoundingBoxes(boxes: MLMultiArray, confidences: MLMultiArray) -> [Prediction] {
-        assert(boxes.shape[0].intValue == confidences.shape[0].intValue)
-        
-        var predictions = [Prediction]()
-        let numBoxes = min(boxes.shape[0].intValue / 4, confidences.shape[0].intValue)
-        
-        for boxIndex in 0..<numBoxes {
-            let xOffset = boxIndex * 4
-            let yOffset = boxIndex
-            
-            let x = CGFloat(truncating: boxes[xOffset])
-            let y = CGFloat(truncating: boxes[xOffset + 1])
-            let width = CGFloat(truncating: boxes[xOffset + 2])
-            let height = CGFloat(truncating: boxes[xOffset + 3])
-            
-            let confidence = Double(truncating: confidences[yOffset])
-            
-            let epsilon = 0.000001
-            if confidence >= (confidenceThreshold+epsilon) {
-                let rect = CGRect(x: x, y: y, width: width, height: height)
-                
-                let prediction = Prediction(classIndex: 0, score: Float(confidence), rect: rect)
-                predictions.append(prediction)
-            }
-        }
-        
-        return predictions
-    }
+    /**/
+    
+    
     
     
     
