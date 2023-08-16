@@ -13,6 +13,7 @@ import CoreMotion
 import VideoToolbox
 
 
+@available(iOS 13.0, *)
 class DetectionViewController: UIViewController {
 
     @IBOutlet weak var videoPreview: UIView!
@@ -23,7 +24,7 @@ class DetectionViewController: UIViewController {
     let visualFeedbackView = VisualFeedbackView()
     
     var viewModel: DetectionViewModel!
-    
+
     let yolo = YOLO()
     let motionManager = MotionManager()
     var lightPhaseManager: LightPhaseManager!
@@ -66,6 +67,7 @@ class DetectionViewController: UIViewController {
         
     }()
     
+    
     lazy var zoomOutButton: UIView = {
         let btn = UIButton(type: .system)
         btn.layer.cornerRadius = 5
@@ -107,7 +109,7 @@ class DetectionViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        title = "Ampelpilot"
+        title = "CrossWalk Buddy"
         navigationItem.rightBarButtonItems = [settingsButton]
         
         //NotificationCenter.default.addObserver(self, selector: #selector(willResignActive), name: .UIApp, object: nil)
@@ -233,19 +235,24 @@ class DetectionViewController: UIViewController {
         // 20 classes in total.
         colors.append(.red)
         colors.append(.green)
+        colors.append(.blue)
     }
     
     func setupYolo() {
-        self.yolo.confidenceThreshold = viewModel.confidenceThreshold
-        self.yolo.iouThreshold = viewModel.iouThreshold
+        self.yolo.confidenceThreshold = Double(viewModel.confidenceThreshold)
+        self.yolo.iouThreshold = Double(viewModel.iouThreshold)
     }
     
     func setUpVision() {
 
-        guard let visionModel = try? VNCoreMLModel(for: yolo.model.model) else {
+       /* guard let visionModel = try? VNCoreMLModel(for: yolo.model.model) else {
             print("Error: could not create Vision model")
             return
-        }
+        }*/
+        guard let visionModel = try? VNCoreMLModel(for: yolo.model.model) else {
+             print("Error: could not create Vision model")
+             return
+         }
         
         request = VNCoreMLRequest(model: visionModel, completionHandler: visionRequestDidComplete)
         
@@ -285,6 +292,7 @@ class DetectionViewController: UIViewController {
                     // Add the bounding box layers to the UI, on top of the video preview.
                     for box in self.boundingBoxes {
                         box.addToLayer(self.videoPreview.layer)
+
                     }
                 }
                 
@@ -312,26 +320,49 @@ class DetectionViewController: UIViewController {
     
     func predictUsingVision(pixelBuffer: CVPixelBuffer) {
         // Measure how long it takes to predict a single video frame. Note that
-        // predict() can be called on the next frame while the previous one is
-        // still being processed. Hence the need to queue up the start times.
-        startTimes.append(CACurrentMediaTime())
-        
-        // Vision will automatically resize the input image.
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer)
-        try? handler.perform([request])
+               // predict() can be called on the next frame while the previous one is
+               // still being processed. Hence the need to queue up the start times.
+               startTimes.append(CACurrentMediaTime())
+
+               // Construct NewModelInput
+                //let input = NewModelInput(image: pixelBuffer, iouThreshold: yolo.iouThreshold, confidenceThreshold: yolo.confidenceThreshold)
+               // Call the predict method of NewYOLO
+               if let predictions = yolo.predict(image: pixelBuffer) {
+                   let elapsed = CACurrentMediaTime() - startTimes.remove(at: 0)
+
+                   lightPhaseManager.add(predictions: predictions)
+
+                   showOnMainThread(predictions, elapsed, lightPhaseManager.determine())
+               }
     }
-    
+    // this one for crossbudv3
+    /*func visionRequestDidComplete(request: VNRequest, error: Error?) {
+        if let observations = request.results as? [VNCoreMLFeatureValueObservation],
+            let confidenceFeatures = observations.first?.featureValue.multiArrayValue,
+            let coordinatesFeatures = observations.last?.featureValue.multiArrayValue {
+
+            let boundingBoxes = yolo.computeBoundingBoxes(confidence: confidenceFeatures, coordinates: coordinatesFeatures)
+            let elapsed = CACurrentMediaTime() - startTimes.remove(at: 0)
+
+            lightPhaseManager.add(predictions: boundingBoxes)
+
+            showOnMainThread(boundingBoxes, elapsed, lightPhaseManager.determine())
+        }
+    }*/
+// this one for ampel pilot and best
     func visionRequestDidComplete(request: VNRequest, error: Error?) {
         if let observations = request.results as? [VNCoreMLFeatureValueObservation],
             let features = observations.first?.featureValue.multiArrayValue {
-            
-            let boundingBoxes = yolo.computeBoundingBoxes(features: features)
+            let boundingBoxes = yolo.computeBoundingBoxes(boxes: features, confidences: (observations.last?.featureValue.multiArrayValue)!)
+           // let boundingBoxes = yolo.computeBoundingBoxes(features: features)
             let elapsed = CACurrentMediaTime() - startTimes.remove(at: 0)
             
             lightPhaseManager.add(predictions: boundingBoxes)
 
             showOnMainThread(boundingBoxes, elapsed, lightPhaseManager.determine())
         }
+        
+        
     }
     
     func showOnMainThread(_ boundingBoxes: [YOLO.Prediction], _ elapsed: CFTimeInterval, _ phase: LightPhaseManager.Phase) {
@@ -343,6 +374,10 @@ class DetectionViewController: UIViewController {
             
             self.show(predictions: boundingBoxes)
             self.updateResultsLabel(phase)
+            // Print the detections to the command line
+                    for prediction in boundingBoxes {
+                        print("Label: \(labels[prediction.classIndex]), Confidence: \(prediction.score), Rect: \(prediction.rect)")
+                    }
             
             self.semaphore.signal()
         }
@@ -389,6 +424,7 @@ class DetectionViewController: UIViewController {
                 // and bottom.
                 let width = view.bounds.width
                 let height = width * (self.viewModel.capturePreset == .vga640x480 ? (4 / 3) : (16 / 9))
+                
                 let scaleX = width / CGFloat(YOLO.inputWidth)
                 let scaleY = height / CGFloat(YOLO.inputHeight)
                 let top = (view.bounds.height - height) / 2
@@ -413,6 +449,7 @@ class DetectionViewController: UIViewController {
 
 }
 
+@available(iOS 13.0, *)
 extension DetectionViewController: VideoCaptureDelegate {
     func videoCapture(_ capture: VideoCapture, didCaptureVideoFrame pixelBuffer: CVPixelBuffer?, timestamp: CMTime) {
         // For debugging.
@@ -425,8 +462,10 @@ extension DetectionViewController: VideoCaptureDelegate {
             // instead of on the VideoCapture queue. We use the semaphore to block
             // the capture queue and drop frames when Core ML can't keep up.
             DispatchQueue.global().async {
-                //self.predict(pixelBuffer: pixelBuffer)
-                self.predictUsingVision(pixelBuffer: pixelBuffer)
+               // self.predict(pixelBuffer: pixelBuffer)
+                let resizedPixelBuffer = resizePixelBuffer(pixelBuffer, width: YOLO.inputWidth, height: YOLO.inputHeight)
+
+                self.predictUsingVision(pixelBuffer: resizedPixelBuffer!)
             }
         }
     }
@@ -448,6 +487,7 @@ extension DetectionViewController: VideoCaptureDelegate {
     }
 }
 
+@available(iOS 13.0, *)
 extension DetectionViewController: MotionManagerDelegate {
     func didUpdate(withMotion: CMDeviceMotion) {
         let pitch = (180 / Double.pi * withMotion.attitude.pitch)/100

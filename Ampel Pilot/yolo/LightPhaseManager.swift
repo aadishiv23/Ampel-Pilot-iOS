@@ -9,6 +9,7 @@
 import Foundation
 import UIKit
 
+@available(iOS 13.0, *)
 class LightPhaseManager {
     
     struct Detection: Comparable {
@@ -108,7 +109,7 @@ class LightPhaseManager {
         self.feedback = feedback
         
         self.detections = [Detection]()
-        self.currentPhase = .none
+        self.currentPhase = LightPhaseManager.Phase.none
     }
     
     func add(predictions: [YOLO.Prediction]) {

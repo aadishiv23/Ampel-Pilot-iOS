@@ -1,0 +1,478 @@
+//
+//  YOLO.swift
+//  Ampel Pilot
+//
+//  Original source by hollance on 21.06.2017 @https://github.com/hollance/YOLO-CoreML-MPSNNGraph.
+//
+/*
+import Foundation
+import UIKit
+import CoreML
+
+@available(iOS 13.0, *)
+class YOLO {
+    public static let inputWidth = 416//416//1088
+    public static let inputHeight = 416//416//1088
+    public static let maxBoundingBoxes = 3
+    
+    // Tweak these values to get more or fewer predictions.
+    var confidenceThreshold: Float = 0.3//0.15
+    var iouThreshold: Float = 0.5
+    
+    struct Prediction {
+        let classIndex: Int
+        let score: Float
+        let rect: CGRect
+    }
+    
+    let model = AmpelPilot_2812rg()//AmpelPilot1_416()//AmpelPilot1()
+    //let model = CrossBudV2-1()
+    //let model = CrossBudV3()
+    //let model = best()
+    //let model = TinyYOLO()
+   
+    
+    
+    public init() { }
+    
+    public func predict(image: CVPixelBuffer) throws -> [Prediction] {
+        return []
+    }
+    
+    public func computeBoundingBoxes(features: MLMultiArray) -> [Prediction] {
+        //assert(features.count == 125*13*13)
+        
+        var predictions = [Prediction]()
+        
+        let blockSize: Float = 32
+        let gridHeight = 13//13//34
+        let gridWidth = 13//13//34
+        let boxesPerCell = 5
+        let numClasses = 2
+        
+        // The 416x416 image is divided into a 13x13 grid. Each of these grid cells
+        // will predict 5 bounding boxes (boxesPerCell). A bounding box consists of
+        // five data items: x, y, width, height, and a confidence score. Each grid
+        // cell also predicts which class each bounding box belongs to.
+        //
+        // The "features" array therefore contains (numClasses + 5)*boxesPerCell
+        // values for each grid cell, i.e. 125 channels. The total features array
+        // contains 125x13x13 elements.
+        
+        // NOTE: It turns out that accessing the elements in the multi-array as
+        // `features[[channel, cy, cx] as [NSNumber]].floatValue` is kinda slow.
+        // It's much faster to use direct memory access to the features.
+        let featurePointer = UnsafeMutablePointer<Double>(OpaquePointer(features.dataPointer))
+        let channelStride = features.strides[0].intValue
+        let yStride = features.strides[1].intValue
+        let xStride = features.strides[2].intValue
+        
+        func offset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
+            return channel*channelStride + y*yStride + x*xStride
+        }
+        
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    
+                    // For the first bounding box (b=0) we have to read channels 0-24,
+                    // for b=1 we have to read channels 25-49, and so on.
+                    let channel = b*(numClasses + 5)
+                    
+                    // The slow way:
+                    /*
+                     let tx = features[[channel    , cy, cx] as [NSNumber]].floatValue
+                     let ty = features[[channel + 1, cy, cx] as [NSNumber]].floatValue
+                     let tw = features[[channel + 2, cy, cx] as [NSNumber]].floatValue
+                     let th = features[[channel + 3, cy, cx] as [NSNumber]].floatValue
+                     let tc = features[[channel + 4, cy, cx] as [NSNumber]].floatValue
+                     */
+                    
+                    // The fast way:
+                    let tx = Float(featurePointer[offset(channel    , cx, cy)])
+                    let ty = Float(featurePointer[offset(channel + 1, cx, cy)])
+                    let tw = Float(featurePointer[offset(channel + 2, cx, cy)])
+                    let th = Float(featurePointer[offset(channel + 3, cx, cy)])
+                    let tc = Float(featurePointer[offset(channel + 4, cx, cy)])
+                    
+                    // The predicted tx and ty coordinates are relative to the location
+                    // of the grid cell; we use the logistic sigmoid to constrain these
+                    // coordinates to the range 0 - 1. Then we add the cell coordinates
+                    // (0-12) and multiply by the number of pixels per grid cell (32).
+                    // Now x and y represent center of the bounding box in the original
+                    // 416x416 image space.
+                    let x = (Float(cx) + sigmoid(tx)) * blockSize
+                    let y = (Float(cy) + sigmoid(ty)) * blockSize
+                    
+                    // The size of the bounding box, tw and th, is predicted relative to
+                    // the size of an "anchor" box. Here we also transform the width and
+                    // height into the original 416x416 image space.
+                    let w = exp(tw) * anchors[2*b    ] * blockSize
+                    let h = exp(th) * anchors[2*b + 1] * blockSize
+                    
+                    // The confidence value for the bounding box is given by tc. We use
+                    // the logistic sigmoid to turn this into a percentage.
+                    let confidence = sigmoid(tc)
+                    
+                    // Gather the predicted classes for this anchor box and softmax them,
+                    // so we can interpret these numbers as percentages.
+                    var classes = [Float](repeating: 0, count: numClasses)
+                    for c in 0..<numClasses {
+                        // The slow way:
+                        //classes[c] = features[[channel + 5 + c, cy, cx] as [NSNumber]].floatValue
+                        
+                        // The fast way:
+                        classes[c] = Float(featurePointer[offset(channel + 5 + c, cx, cy)])
+                    }
+                    classes = softmax(classes)
+                    
+                    // Find the index of the class with the largest score.
+                    let (detectedClass, bestClassScore) = classes.argmax()
+                    
+                    // Combine the confidence score for the bounding box, which tells us
+                    // how likely it is that there is an object in this box (but not what
+                    // kind of object it is), with the largest class prediction, which
+                    // tells us what kind of object it detected (but not where).
+                    let confidenceInClass = bestClassScore * confidence
+                    
+                    // Since we compute 13x13x5 = 845 bounding boxes, we only want to
+                    // keep the ones whose combined score is over a certain threshold.
+                    if confidenceInClass > confidenceThreshold {
+                        let rect = CGRect(x: CGFloat(x - w/2), y: CGFloat(y - h/2),
+                                          width: CGFloat(w), height: CGFloat(h))
+                        
+                        let prediction = Prediction(classIndex: detectedClass,
+                                                    score: confidenceInClass,
+                                                    rect: rect)
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+        
+        // We already filtered out any bounding boxes that have very low scores,
+        // but there still may be boxes that overlap too much with others. We'll
+        // use "non-maximum suppression" to prune those duplicate bounding boxes.
+        
+        return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+        // Filter the bounding boxes based on their confidence scores.
+        //predictions = predictions.filter { $0.score > confidenceThreshold }
+        
+        // Return the list of remaining bounding boxes.
+        //print(predictions)
+        //return predictions
+    }
+    
+    /*public func computeBoundingBoxes(confidence: MLMultiArray, coordinates: MLMultiArray) -> [Prediction] {
+        assert(confidence.count == 13 * 13 * (2 * 5)) // Adjust this based on your model output shape.
+        assert(coordinates.count == 13 * 13 * (4 * 5)) // Adjust this based on your model output shape.
+
+        var predictions = [Prediction]()
+
+        let blockSize: Float = 32
+        let gridHeight = 13
+        let gridWidth = 13
+        let boxesPerCell = 5
+        let numClasses = 2
+
+        // Access the confidence and coordinates arrays directly using the multi-array data pointer.
+        let confidencePointer = UnsafeMutablePointer<Double>(OpaquePointer(confidence.dataPointer))
+        let coordinatesPointer = UnsafeMutablePointer<Double>(OpaquePointer(coordinates.dataPointer))
+
+        // Define the offset function for confidence.
+        func confidenceOffset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
+            return channel * gridHeight * gridWidth + y * gridWidth + x
+        }
+
+        // Define the offset function for coordinates.
+        func coordinatesOffset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
+            return channel * gridHeight * gridWidth * 4 + y * gridWidth * 4 + x * 4
+        }
+
+        // Your coordinate processing code here.
+        // Iterate through the grid cells and bounding boxes.
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    let channel = b * (numClasses + 5)
+                    
+                    // Read confidence value for this bounding box.
+                    let tc = Float(confidencePointer[confidenceOffset(channel + 5 + b, cx, cy)])
+
+                    // Read coordinates (tx, ty, tw, th) for this bounding box.
+                    let tx = Float(coordinatesPointer[coordinatesOffset(channel, cx, cy)])
+                    let ty = Float(coordinatesPointer[coordinatesOffset(channel + 1, cx, cy)])
+                    let tw = Float(coordinatesPointer[coordinatesOffset(channel + 2, cx, cy)])
+                    let th = Float(coordinatesPointer[coordinatesOffset(channel + 3, cx, cy)])
+
+                    // Your code to compute x, y, w, h from tx, ty, tw, th using the sigmoid and other functions as before.
+                    // The predicted tx and ty coordinates are relative to the location
+                    // of the grid cell; we use the logistic sigmoid to constrain these
+                    // coordinates to the range 0 - 1. Then we add the cell coordinates
+                    // (0-12) and multiply by the number of pixels per grid cell (32).
+                    // Now x and y represent center of the bounding box in the original
+                    // 416x416 image space.
+                    let x = (Float(cx) + sigmoid(tx)) * blockSize
+                    let y = (Float(cy) + sigmoid(ty)) * blockSize
+                    
+                    // The size of the bounding box, tw and th, is predicted relative to
+                    // the size of an "anchor" box. Here we also transform the width and
+                    // height into the original 416x416 image space.
+                    let w = exp(tw) * anchors[2*b    ] * blockSize
+                    let h = exp(th) * anchors[2*b + 1] * blockSize
+
+                    // Your code to compute detectedClass and confidenceInClass (similar to the original code).
+                    // The confidence value for the bounding box is given by tc. We use
+                    // the logistic sigmoid to turn this into a percentage.
+                    let confidence = sigmoid(tc)
+                    
+                    // Gather the predicted classes for this anchor box and softmax them,
+                    // so we can interpret these numbers as percentages.
+                    var classes = [Float](repeating: 0, count: numClasses)
+                    for c in 0..<numClasses {
+                        // The slow way:
+                        //classes[c] = features[[channel + 5 + c, cy, cx] as [NSNumber]].floatValue
+                        
+                        // The fast way:
+                        classes[c] = Float(confidencePointer[confidenceOffset(channel + 5 + c, cx, cy)])
+                    }
+                    classes = softmax(classes)
+                    
+                    // Find the index of the class with the largest score.
+                    let (detectedClass, bestClassScore) = classes.argmax()
+                    
+                    // Combine the confidence score for the bounding box, which tells us
+                    // how likely it is that there is an object in this box (but not what
+                    // kind of object it is), with the largest class prediction, which
+                    // tells us what kind of object it detected (but not where).
+                    let confidenceInClass = bestClassScore * confidence
+                    
+                    // Since we compute 13x13x5 = 845 bounding boxes, we only want to
+                    // keep the ones whose combined score is over a certain threshold.
+
+                    // Append predictions as before.
+                    if confidenceInClass > confidenceThreshold {
+                        let rect = CGRect(x: CGFloat(x - w / 2), y: CGFloat(y - h / 2),
+                                          width: CGFloat(w), height: CGFloat(h))
+
+                        let prediction = Prediction(classIndex: detectedClass,
+                                                    score: confidenceInClass,
+                                                    rect: rect)
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+
+        // Apply non-maximum suppression as before if needed.
+
+        return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+    }*/
+
+
+    /*public func computeBoundingBoxes(confidence: MLMultiArray, coordinates: MLMultiArray) -> [Prediction] {
+        assert(confidence.count == 13 * 13 * (2 * 5)) // Adjust this based on your model output shape.
+        assert(coordinates.count == 13 * 13 * (4 * 5)) // Adjust this based on your model output shape.
+
+        var predictions = [Prediction]()
+
+        let blockSize: Float = 32
+        let gridHeight = 13
+        let gridWidth = 13
+        let boxesPerCell = 5
+        let numClasses = 2
+
+        // Access the confidence and coordinates arrays directly using the multi-array data pointer.
+        let confidencePointer = UnsafeMutablePointer<Double>(OpaquePointer(confidence.dataPointer))
+        let coordinatesPointer = UnsafeMutablePointer<Double>(OpaquePointer(coordinates.dataPointer))
+
+        // Your coordinate processing code here.
+        // Iterate through the grid cells and bounding boxes.
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    let channel = b * numClasses
+
+                    // Read confidence value for this bounding box.
+                    let tc = Float(confidencePointer[cy * gridWidth * boxesPerCell + cx * boxesPerCell + b])
+
+                    // Your code to read coordinates (tx, ty, tw, th) for this bounding box.
+                    let tx = Float(coordinatesPointer[(cy * gridWidth * boxesPerCell + cx * boxesPerCell + b) * 4])
+                    let ty = Float(coordinatesPointer[(cy * gridWidth * boxesPerCell + cx * boxesPerCell + b) * 4 + 1])
+                    let tw = Float(coordinatesPointer[(cy * gridWidth * boxesPerCell + cx * boxesPerCell + b) * 4 + 2])
+                    let th = Float(coordinatesPointer[(cy * gridWidth * boxesPerCell + cx * boxesPerCell + b) * 4 + 3])
+
+                    // The remaining parts of your computation, like converting tx, ty, tw, th to x, y, w, h
+                    // and then using the sigmoid and softmax functions as before.
+
+                    // Append predictions as before.
+                    // Let's assume you already have `confidenceInClass` and `classes` computed.
+                    if confidenceInClass > confidenceThreshold {
+                        let rect = CGRect(x: CGFloat(x - w / 2), y: CGFloat(y - h / 2),
+                                          width: CGFloat(w), height: CGFloat(h))
+
+                        let prediction = Prediction(classIndex: detectedClass,
+                                                    score: confidenceInClass,
+                                                    rect: rect)
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+
+        // Apply non-maximum suppression as before if needed.
+
+        return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+    }*/
+
+    /*func computeBoundingBoxes(features: MLMultiArray) -> [Prediction] {
+        //assert(features.count == 10)
+        
+        var predictions = [Prediction]()
+        
+        let boxes = features[0]
+        let classes = features[1]
+        let confidences = features[2]
+        
+        for i in 0..<boxes.count {
+            let x = boxes[i][0]
+            let y = boxes[i][1]
+            let w = boxes[i][2]
+            let h = boxes[i][3]
+            
+            let classIndex = Int(classes[i])
+            let confidence = confidences[i]
+            
+            let rect = CGRect(x: CGFloat(x), y: CGFloat(y), width: CGFloat(w), height: CGFloat(h))
+            
+            let prediction = Prediction(classIndex: classIndex, score: confidence, rect: rect)
+            predictions.append(prediction)
+        }
+        
+        return predictions
+    }*/
+    /*public func computeBoundingBoxes(features: MLMultiArray) -> [Prediction] {
+        //assert(features.count == 125*13*13)
+        
+        var predictions = [Prediction]()
+        
+        let blockSize: Float = 32
+        let gridHeight = 13//13//34
+        let gridWidth = 13//13//34
+        let boxesPerCell = 5
+        let numClasses = 2
+        
+        // The 416x416 image is divided into a 13x13 grid. Each of these grid cells
+        // will predict 5 bounding boxes (boxesPerCell). A bounding box consists of
+        // five data items: x, y, width, height, and a confidence score. Each grid
+        // cell also predicts which class each bounding box belongs to.
+        //
+        // The "features" array therefore contains (numClasses + 5)*boxesPerCell
+        // values for each grid cell, i.e. 125 channels. The total features array
+        // contains 125x13x13 elements.
+        
+        // NOTE: It turns out that accessing the elements in the multi-array as
+        // `features[[channel, cy, cx] as [NSNumber]].floatValue` is kinda slow.
+        // It's much faster to use direct memory access to the features.
+        let featurePointer = UnsafeMutablePointer<Double>(OpaquePointer(features.dataPointer))
+        let channelStride = features.strides[0].intValue
+        let yStride = features.strides[1].intValue
+        let xStride = features.strides[2].intValue
+        
+        func offset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
+            return channel*channelStride + y*yStride + x*xStride
+        }
+        
+        for cy in 0..<gridHeight {
+            for cx in 0..<gridWidth {
+                for b in 0..<boxesPerCell {
+                    
+                    // For the first bounding box (b=0) we have to read channels 0-24,
+                    // for b=1 we have to read channels 25-49, and so on.
+                    let channel = b*(numClasses + 5)
+                    
+                    // The slow way:
+                    /*
+                     let tx = features[[channel    , cy, cx] as [NSNumber]].floatValue
+                     let ty = features[[channel + 1, cy, cx] as [NSNumber]].floatValue
+                     let tw = features[[channel + 2, cy, cx] as [NSNumber]].floatValue
+                     let th = features[[channel + 3, cy, cx] as [NSNumber]].floatValue
+                     let tc = features[[channel + 4, cy, cx] as [NSNumber]].floatValue
+                     */
+                    
+                    // The fast way:
+                    let tx = Float(featurePointer[offset(channel    , cx, cy)])
+                    let ty = Float(featurePointer[offset(channel + 1, cx, cy)])
+                    let tw = Float(featurePointer[offset(channel + 2, cx, cy)])
+                    let th = Float(featurePointer[offset(channel + 3, cx, cy)])
+                    let tc = Float(featurePointer[offset(channel + 4, cx, cy)])
+                    
+                    // The predicted tx and ty coordinates are relative to the location
+                    // of the grid cell; we use the logistic sigmoid to constrain these
+                    // coordinates to the range 0 - 1. Then we add the cell coordinates
+                    // (0-12) and multiply by the number of pixels per grid cell (32).
+                    // Now x and y represent center of the bounding box in the original
+                    // 416x416 image space.
+                    let x = (Float(cx) + sigmoid(tx)) * blockSize
+                    let y = (Float(cy) + sigmoid(ty)) * blockSize
+                    
+                    // The size of the bounding box, tw and th, is predicted relative to
+                    // the size of an "anchor" box. Here we also transform the width and
+                    // height into the original 416x416 image space.
+                    let w = exp(tw) * anchors[2*b    ] * blockSize
+                    let h = exp(th) * anchors[2*b + 1] * blockSize
+                    
+                    // The confidence value for the bounding box is given by tc. We use
+                    // the logistic sigmoid to turn this into a percentage.
+                    let confidence = sigmoid(tc)
+                    
+                    // Gather the predicted classes for this anchor box and softmax them,
+                    // so we can interpret these numbers as percentages.
+                    var classes = [Float](repeating: 0, count: numClasses)
+                    for c in 0..<numClasses {
+                        // The slow way:
+                        //classes[c] = features[[channel + 5 + c, cy, cx] as [NSNumber]].floatValue
+                        
+                        // The fast way:
+                        classes[c] = Float(featurePointer[offset(channel + 5 + c, cx, cy)])
+                    }
+                    classes = softmax(classes)
+                    
+                    // Find the index of the class with the largest score.
+                    let (detectedClass, bestClassScore) = classes.argmax()
+                    
+                    // Combine the confidence score for the bounding box, which tells us
+                    // how likely it is that there is an object in this box (but not what
+                    // kind of object it is), with the largest class prediction, which
+                    // tells us what kind of object it detected (but not where).
+                    let confidenceInClass = bestClassScore * confidence
+                    
+                    // Since we compute 13x13x5 = 845 bounding boxes, we only want to
+                    // keep the ones whose combined score is over a certain threshold.
+                    if confidenceInClass > confidenceThreshold {
+                        let rect = CGRect(x: CGFloat(x - w/2), y: CGFloat(y - h/2),
+                                          width: CGFloat(w), height: CGFloat(h))
+                        
+                        let prediction = Prediction(classIndex: detectedClass,
+                                                    score: confidenceInClass,
+                                                    rect: rect)
+                        predictions.append(prediction)
+                    }
+                }
+            }
+        }
+        
+        // We already filtered out any bounding boxes that have very low scores,
+        // but there still may be boxes that overlap too much with others. We'll
+        // use "non-maximum suppression" to prune those duplicate bounding boxes.
+        
+        return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+        // Filter the bounding boxes based on their confidence scores.
+        //predictions = predictions.filter { $0.score > confidenceThreshold }
+        
+        // Return the list of remaining bounding boxes.
+        //print(predictions)
+        //return predictions
+    }*/
+}
+*/

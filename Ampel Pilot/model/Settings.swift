@@ -26,6 +26,7 @@ struct Settings {
     static func initDefaults() {
         if !Defaults.hasKey("sound") {
             Defaults[DefaultsKey<Bool>("sound")] = true
+
         }
         
         if !Defaults.hasKey("vibrate") {

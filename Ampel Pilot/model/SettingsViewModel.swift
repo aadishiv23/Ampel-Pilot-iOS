@@ -27,7 +27,6 @@ class SettingsViewModel {
             }
         }
     }
-    
     private var captureDevice: AVCaptureDevice?
     
     public var capturePreset: AVCaptureSession.Preset {
@@ -151,7 +150,7 @@ extension SettingsViewModel {
         case AVCaptureSession.Preset.hd4K3840x2160:
             return "4K"
         default:
-            return "unbekannt"
+            return "Unknown"
         }
     }
     

@@ -33,6 +33,12 @@
 		A3ADF3541F9FA67600EA4F8D /* VisualFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3ADF3531F9FA67600EA4F8D /* VisualFeedbackView.swift */; };
 		A3B07EE31F84DC9000B791B5 /* LightPhaseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3B07EE21F84DC9000B791B5 /* LightPhaseManager.swift */; };
 		A3E8769A1F87B235006BEE74 /* MotionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E876991F87B235006BEE74 /* MotionManager.swift */; };
+		AC200B4B2A71807700D3A70A /* best.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = AC200B4A2A71807700D3A70A /* best.mlmodel */; };
+		AC353E722A658F9700FC3C6F /* CrossBudV2-1.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = AC353E712A658F9700FC3C6F /* CrossBudV2-1.mlpackage */; };
+		AC508F0A2A7990BA0096D870 /* TinyYOLO.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = AC508F092A7990BA0096D870 /* TinyYOLO.mlmodel */; };
+		AC7296ED2A8A9098006CEA2D /* oldYOLO.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7296EC2A8A9098006CEA2D /* oldYOLO.swift */; };
+		AC7296EF2A8AA375006CEA2D /* oldDetectionViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC7296EE2A8AA375006CEA2D /* oldDetectionViewController.swift */; };
+		ACCAF7982A65978B00236848 /* CrossBudV3.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = ACCAF7972A65978B00236848 /* CrossBudV3.mlpackage */; };
 		ACEF7EE42A49EFDA00956009 /* AmpelPilot_2812rg.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = ACEF7EE32A49EFDA00956009 /* AmpelPilot_2812rg.mlpackage */; };
 /* End PBXBuildFile section */
 
@@ -86,6 +92,12 @@
 		A3ADF3531F9FA67600EA4F8D /* VisualFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualFeedbackView.swift; sourceTree = "<group>"; };
 		A3B07EE21F84DC9000B791B5 /* LightPhaseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LightPhaseManager.swift; sourceTree = "<group>"; };
 		A3E876991F87B235006BEE74 /* MotionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionManager.swift; sourceTree = "<group>"; };
+		AC200B4A2A71807700D3A70A /* best.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = best.mlmodel; sourceTree = "<group>"; };
+		AC353E712A658F9700FC3C6F /* CrossBudV2-1.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = "CrossBudV2-1.mlpackage"; sourceTree = "<group>"; };
+		AC508F092A7990BA0096D870 /* TinyYOLO.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; path = TinyYOLO.mlmodel; sourceTree = "<group>"; };
+		AC7296EC2A8A9098006CEA2D /* oldYOLO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = oldYOLO.swift; sourceTree = "<group>"; };
+		AC7296EE2A8AA375006CEA2D /* oldDetectionViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = oldDetectionViewController.swift; sourceTree = "<group>"; };
+		ACCAF7972A65978B00236848 /* CrossBudV3.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = CrossBudV3.mlpackage; sourceTree = "<group>"; };
 		ACEF7EE32A49EFDA00956009 /* AmpelPilot_2812rg.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = AmpelPilot_2812rg.mlpackage; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -164,6 +176,7 @@
 				A35F9F5A1F837D0C00208042 /* helpers */,
 				A35F9F2C1F8378DA00208042 /* AppDelegate.swift */,
 				A35F9F2E1F8378DA00208042 /* DetectionViewController.swift */,
+				AC7296EE2A8AA375006CEA2D /* oldDetectionViewController.swift */,
 				A32E3A181F9A20C40059276D /* SettingsViewController.swift */,
 				A31AF2111F9B370B0067132E /* SelectionViewController.swift */,
 				A3ADF3531F9FA67600EA4F8D /* VisualFeedbackView.swift */,
@@ -216,8 +229,13 @@
 		A35F9F641F837DD500208042 /* yolo */ = {
 			isa = PBXGroup;
 			children = (
+				AC353E712A658F9700FC3C6F /* CrossBudV2-1.mlpackage */,
 				ACEF7EE32A49EFDA00956009 /* AmpelPilot_2812rg.mlpackage */,
+				ACCAF7972A65978B00236848 /* CrossBudV3.mlpackage */,
+				AC200B4A2A71807700D3A70A /* best.mlmodel */,
+				AC508F092A7990BA0096D870 /* TinyYOLO.mlmodel */,
 				A35F9F651F837DE000208042 /* YOLO.swift */,
+				AC7296EC2A8A9098006CEA2D /* oldYOLO.swift */,
 				A35F9F671F837E0400208042 /* BoundingBox.swift */,
 				A3B07EE21F84DC9000B791B5 /* LightPhaseManager.swift */,
 				A395C7BD1F8A252500BF0CB0 /* FeedbackManager.swift */,
@@ -293,15 +311,18 @@
 				TargetAttributes = {
 					A35F9F281F8378DA00208042 = {
 						CreatedOnToolsVersion = 9.0;
+						LastSwiftMigration = "";
 						ProvisioningStyle = Automatic;
 					};
 					A35F9F3C1F8378DB00208042 = {
 						CreatedOnToolsVersion = 9.0;
+						LastSwiftMigration = "";
 						ProvisioningStyle = Automatic;
 						TestTargetID = A35F9F281F8378DA00208042;
 					};
 					A35F9F471F8378DB00208042 = {
 						CreatedOnToolsVersion = 9.0;
+						LastSwiftMigration = "";
 						ProvisioningStyle = Automatic;
 						TestTargetID = A35F9F281F8378DA00208042;
 					};
@@ -368,7 +389,10 @@
 				A327FA691F94A8AF002A33FE /* Settings.swift in Sources */,
 				A32E3A191F9A20C40059276D /* SettingsViewController.swift in Sources */,
 				A35F9F2D1F8378DA00208042 /* AppDelegate.swift in Sources */,
+				AC508F0A2A7990BA0096D870 /* TinyYOLO.mlmodel in Sources */,
+				AC7296ED2A8A9098006CEA2D /* oldYOLO.swift in Sources */,
 				A32E3A1B1F9A3F870059276D /* Box.swift in Sources */,
+				AC7296EF2A8AA375006CEA2D /* oldDetectionViewController.swift in Sources */,
 				A327FA701F94C597002A33FE /* SettingsViewModel.swift in Sources */,
 				A3E8769A1F87B235006BEE74 /* MotionManager.swift in Sources */,
 				A35F9F681F837E0400208042 /* BoundingBox.swift in Sources */,
@@ -377,9 +401,12 @@
 				A327FA6E1F94B75A002A33FE /* UserDefaults+Helpers.swift in Sources */,
 				A327FA721F94C5A0002A33FE /* DetectionViewModel.swift in Sources */,
 				A35F9F611F837D9300208042 /* Helpers.swift in Sources */,
+				AC200B4B2A71807700D3A70A /* best.mlmodel in Sources */,
 				A35F9F631F837DB800208042 /* VideoCapture.swift in Sources */,
+				AC353E722A658F9700FC3C6F /* CrossBudV2-1.mlpackage in Sources */,
 				A35F9F661F837DE000208042 /* YOLO.swift in Sources */,
 				A35F9F5F1F837D7300208042 /* UIImage+CVPixelBuffer.swift in Sources */,
+				ACCAF7982A65978B00236848 /* CrossBudV3.mlpackage in Sources */,
 				A395C7BE1F8A252500BF0CB0 /* FeedbackManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -578,7 +605,7 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				DEVELOPMENT_TEAM = P84Z6JD2F2;
+				DEVELOPMENT_TEAM = 8VNWQXUY4G;
 				INFOPLIST_FILE = "Ampel PilotTests/Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @loader_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.hsa.Ampel-PilotTests";

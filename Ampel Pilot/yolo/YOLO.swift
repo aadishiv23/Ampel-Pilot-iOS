@@ -1,152 +1,184 @@
-//
-//  YOLO.swift
-//  Ampel Pilot
-//
-//  Original source by hollance on 21.06.2017 @https://github.com/hollance/YOLO-CoreML-MPSNNGraph.
-//
-
 import Foundation
 import UIKit
 import CoreML
 
+@available(iOS 12.0, *)
 class YOLO {
     public static let inputWidth = 416//416//1088
     public static let inputHeight = 416//416//1088
-    public static let maxBoundingBoxes = 3
+    public static let maxBoundingBoxes = 10
     
     // Tweak these values to get more or fewer predictions.
-    var confidenceThreshold: Float = 0.3//0.15
-    var iouThreshold: Float = 0.5
-    
+    var confidenceThreshold: Double = 0.3
+    var iouThreshold: Double = 0.45
+
     struct Prediction {
         let classIndex: Int
         let score: Float
         let rect: CGRect
     }
-    
-    let model = AmpelPilot_2812rg()//AmpelPilot1_416()//AmpelPilot1()
-    
+
+    let model = CrossBudV3()
+
     public init() { }
     
-    public func predict(image: CVPixelBuffer) throws -> [Prediction] {
-        return []
+    public func predict(image: CVPixelBuffer) -> [Prediction]? {
+        //let resizedImage = resizeImage(image, to: CGSize(width: YOLO.inputWidth, height: YOLO.inputHeight))
+        //let resizedImage = resizePixelBuffer(image, width: 416, height: 416) ?? image
+        let output = try? model.prediction(imagePath: image, iouThreshold: iouThreshold, confidenceThreshold: confidenceThreshold)
+
+        if let boxesTensor = output?.coordinates,
+           let confidencesTensor = output?.confidence {
+            let boxes = boxesTensor
+            let confidences = confidencesTensor
+            
+            return computeBoundingBoxes(boxes: boxes, confidences: confidences)
+        } else {
+            return nil
+        }
     }
-    
-    public func computeBoundingBoxes(features: MLMultiArray) -> [Prediction] {
-        //assert(features.count == 125*13*13)
+
+    func convertToDoubleArray(mlMultiArray: MLMultiArray) -> [Double] {
+        let pointer = UnsafeMutablePointer<Double>(OpaquePointer(mlMultiArray.dataPointer))
+        let count = mlMultiArray.count
         
-        var predictions = [Prediction]()
-        
-        let blockSize: Float = 32
-        let gridHeight = 13//13//34
-        let gridWidth = 13//13//34
-        let boxesPerCell = 5
-        let numClasses = 2
-        
-        // The 416x416 image is divided into a 13x13 grid. Each of these grid cells
-        // will predict 5 bounding boxes (boxesPerCell). A bounding box consists of
-        // five data items: x, y, width, height, and a confidence score. Each grid
-        // cell also predicts which class each bounding box belongs to.
-        //
-        // The "features" array therefore contains (numClasses + 5)*boxesPerCell
-        // values for each grid cell, i.e. 125 channels. The total features array
-        // contains 125x13x13 elements.
-        
-        // NOTE: It turns out that accessing the elements in the multi-array as
-        // `features[[channel, cy, cx] as [NSNumber]].floatValue` is kinda slow.
-        // It's much faster to use direct memory access to the features.
-        let featurePointer = UnsafeMutablePointer<Double>(OpaquePointer(features.dataPointer))
-        let channelStride = features.strides[0].intValue
-        let yStride = features.strides[1].intValue
-        let xStride = features.strides[2].intValue
-        
-        func offset(_ channel: Int, _ x: Int, _ y: Int) -> Int {
-            return channel*channelStride + y*yStride + x*xStride
+        var doubleArray = [Double]()
+        for i in 0..<count {
+            let value = pointer[i]
+            doubleArray.append(value)
         }
         
-        for cy in 0..<gridHeight {
-            for cx in 0..<gridWidth {
-                for b in 0..<boxesPerCell {
-                    
-                    // For the first bounding box (b=0) we have to read channels 0-24,
-                    // for b=1 we have to read channels 25-49, and so on.
-                    let channel = b*(numClasses + 5)
-                    
-                    // The slow way:
-                    /*
-                     let tx = features[[channel    , cy, cx] as [NSNumber]].floatValue
-                     let ty = features[[channel + 1, cy, cx] as [NSNumber]].floatValue
-                     let tw = features[[channel + 2, cy, cx] as [NSNumber]].floatValue
-                     let th = features[[channel + 3, cy, cx] as [NSNumber]].floatValue
-                     let tc = features[[channel + 4, cy, cx] as [NSNumber]].floatValue
-                     */
-                    
-                    // The fast way:
-                    let tx = Float(featurePointer[offset(channel    , cx, cy)])
-                    let ty = Float(featurePointer[offset(channel + 1, cx, cy)])
-                    let tw = Float(featurePointer[offset(channel + 2, cx, cy)])
-                    let th = Float(featurePointer[offset(channel + 3, cx, cy)])
-                    let tc = Float(featurePointer[offset(channel + 4, cx, cy)])
-                    
-                    // The predicted tx and ty coordinates are relative to the location
-                    // of the grid cell; we use the logistic sigmoid to constrain these
-                    // coordinates to the range 0 - 1. Then we add the cell coordinates
-                    // (0-12) and multiply by the number of pixels per grid cell (32).
-                    // Now x and y represent center of the bounding box in the original
-                    // 416x416 image space.
-                    let x = (Float(cx) + sigmoid(tx)) * blockSize
-                    let y = (Float(cy) + sigmoid(ty)) * blockSize
-                    
-                    // The size of the bounding box, tw and th, is predicted relative to
-                    // the size of an "anchor" box. Here we also transform the width and
-                    // height into the original 416x416 image space.
-                    let w = exp(tw) * anchors[2*b    ] * blockSize
-                    let h = exp(th) * anchors[2*b + 1] * blockSize
-                    
-                    // The confidence value for the bounding box is given by tc. We use
-                    // the logistic sigmoid to turn this into a percentage.
-                    let confidence = sigmoid(tc)
-                    
-                    // Gather the predicted classes for this anchor box and softmax them,
-                    // so we can interpret these numbers as percentages.
-                    var classes = [Float](repeating: 0, count: numClasses)
-                    for c in 0..<numClasses {
-                        // The slow way:
-                        //classes[c] = features[[channel + 5 + c, cy, cx] as [NSNumber]].floatValue
-                        
-                        // The fast way:
-                        classes[c] = Float(featurePointer[offset(channel + 5 + c, cx, cy)])
-                    }
-                    classes = softmax(classes)
-                    
-                    // Find the index of the class with the largest score.
-                    let (detectedClass, bestClassScore) = classes.argmax()
-                    
-                    // Combine the confidence score for the bounding box, which tells us
-                    // how likely it is that there is an object in this box (but not what
-                    // kind of object it is), with the largest class prediction, which
-                    // tells us what kind of object it detected (but not where).
-                    let confidenceInClass = bestClassScore * confidence
-                    
-                    // Since we compute 13x13x5 = 845 bounding boxes, we only want to
-                    // keep the ones whose combined score is over a certain threshold.
-                    if confidenceInClass > confidenceThreshold {
-                        let rect = CGRect(x: CGFloat(x - w/2), y: CGFloat(y - h/2),
-                                          width: CGFloat(w), height: CGFloat(h))
-                        
-                        let prediction = Prediction(classIndex: detectedClass,
-                                                    score: confidenceInClass,
-                                                    rect: rect)
-                        predictions.append(prediction)
-                    }
-                }
+        return doubleArray
+    }
+
+    
+    /*public func predict(image: CVPixelBuffer) -> [Prediction]? {
+        let output = try? model.prediction(imagePath: image, iouThreshold: iouThreshold, confidenceThreshold: confidenceThreshold)
+
+        let boxesTensor = output?.coordinates
+        let confidencesTensor = output?.confidence
+        
+        if let boxesTensor = boxesTensor, let confidencesTensor = confidencesTensor {
+            let boxes = boxesTensor.buffer.asReadOnly().float64Array
+            let confidences = confidencesTensor.buffer.asReadOnly().float64Array
+            
+            return computeBoundingBoxes(boxes: boxes, confidences: confidences)
+        } else {
+            return nil
+        }
+    }*/
+
+
+    /*public func predict(image: CVPixelBuffer) -> [Prediction]? {
+        if let output = try? model.prediction(imagePath: image, iouThreshold: iouThreshold, confidenceThreshold: confidenceThreshold),
+
+           let boxesTensor = output.coordinates,
+           let confidencesTensor = output.confidence {
+            
+            let boxes = boxesTensor.buffer.asReadOnly().float64Array
+            let confidences = confidencesTensor.buffer.asReadOnly().float64Array
+          
+            return computeBoundingBoxes(boxes: boxes, confidences: confidences)
+        } else {
+            return nil
+        }
+    }*/
+
+    //oldy w/ doubles
+    /*public func computeBoundingBoxes(boxes: [Double], confidences: [Double]) -> [Prediction] {
+        assert(boxes.count == confidences.count)
+
+        var predictions = [Prediction]()
+        let numBoxes = min(boxes.count / 4, confidences.count)
+
+        for boxIndex in 0..<numBoxes {
+            let xOffset = boxIndex * 4
+            let yOffset = boxIndex
+
+            let x = CGFloat(boxes[xOffset])
+            let y = CGFloat(boxes[xOffset + 1])
+            let width = CGFloat(boxes[xOffset + 2])
+            let height = CGFloat(boxes[xOffset + 3])
+
+            let confidence = Double(confidences[yOffset])
+
+            if confidence > confidenceThreshold {
+                let rect = CGRect(x: x, y: y, width: width, height: height)
+
+                let prediction = Prediction(classIndex: 0, score: Float(confidence), rect: rect)
+                predictions.append(prediction)
+            }
+        }
+    
+        
+        // The new model already includes bounding box pruning, so no need for non-maximum suppression.
+        return predictions
+    }*/
+    
+    public func computeBoundingBoxes(boxes: MLMultiArray, confidences: MLMultiArray) -> [Prediction] {
+        assert(boxes.shape[0].intValue == confidences.shape[0].intValue)
+        
+        var predictions = [Prediction]()
+        let numBoxes = min(boxes.shape[0].intValue / 4, confidences.shape[0].intValue)
+        
+        for boxIndex in 0..<numBoxes {
+            let xOffset = boxIndex * 4
+            let yOffset = boxIndex
+            
+            let x = CGFloat(truncating: boxes[xOffset])
+            let y = CGFloat(truncating: boxes[xOffset + 1])
+            let width = CGFloat(truncating: boxes[xOffset + 2])
+            let height = CGFloat(truncating: boxes[xOffset + 3])
+            
+            let confidence = Double(truncating: confidences[yOffset])
+            
+            let epsilon = 0.000001
+            if confidence >= (confidenceThreshold+epsilon) {
+                let rect = CGRect(x: x, y: y, width: width, height: height)
+                
+                let prediction = Prediction(classIndex: 0, score: Float(confidence), rect: rect)
+                predictions.append(prediction)
             }
         }
         
-        // We already filtered out any bounding boxes that have very low scores,
-        // but there still may be boxes that overlap too much with others. We'll
-        // use "non-maximum suppression" to prune those duplicate bounding boxes.
-        return nonMaxSuppression(boxes: predictions, limit: YOLO.maxBoundingBoxes, threshold: iouThreshold)
+        return predictions
     }
-}
+    
+    
+    
+    /*func resizeImage(_ image: CVPixelBuffer, to size: CGSize) -> CVPixelBuffer? {
+        var resizedPixelBuffer: CVPixelBuffer?
+        let ciImage = CIImage(cvPixelBuffer: image)
+        
+        let scaleX = size.width / CGFloat(CVPixelBufferGetWidth(image))
+        let scaleY = size.height / CGFloat(CVPixelBufferGetHeight(image))
+        let scaleTransform = CGAffineTransform(scaleX: scaleX, y: scaleY)
+        
+        //let outputImage = ciImage.transformed(by: scaleTransform)
+        let outputImage = CIImage(cvImageBuffer: image)
 
+        /*let options: [CIImageOption: Any] = [
+            .colorSpace: CGColorSpaceCreateDeviceRGB(),
+            .kCIImagePixelFormat: kCVPixelFormatType_32BGRA
+        ]*/
+        
+        guard let resizedCIImage = outputImage.transformed(by: scaleTransform),
+                 let resizedCGImage = ciContext.createCGImage(resizedCIImage, from: resizedCIImage.extent) else {
+               return nil
+           }
+        
+        CVPixelBufferCreate(kCFAllocatorDefault, Int(size.width), Int(size.height), kCVPixelFormatType_32BGRA, nil, &resizedPixelBuffer)
+        if let resizedPixelBuffer = resizedPixelBuffer {
+            CVPixelBufferLockBaseAddress(resizedPixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
+            let pixelData = CVPixelBufferGetBaseAddress(resizedPixelBuffer)
+            
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(resizedPixelBuffer)
+            let context = CGContext(data: pixelData, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue)
+            context?.draw(resizedCGImage, in: CGRect(x: 0, y: 0, width: size.width, height: size.height))
+            
+            CVPixelBufferUnlockBaseAddress(resizedPixelBuffer, CVPixelBufferLockFlags(rawValue: 0))
+        }
+        
+        return resizedPixelBuffer
+    }*/
+}

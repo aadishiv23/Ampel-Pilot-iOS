@@ -12,6 +12,7 @@ import AVFoundation
 
 import AudioToolbox.AudioServices
 
+@available(iOS 13.0, *)
 class FeedbackManager {
     private var hapticTimer: Timer?
     private var speechTimer: Timer?

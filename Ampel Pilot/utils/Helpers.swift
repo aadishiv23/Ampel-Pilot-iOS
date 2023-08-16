@@ -33,6 +33,7 @@ struct Platform {
  - limit: the maximum number of boxes that will be selected
  - threshold: used to decide whether boxes overlap too much
  */
+@available(iOS 13.0, *)
 func nonMaxSuppression(boxes: [YOLO.Prediction], limit: Int, threshold: Float) -> [YOLO.Prediction] {
     
     // Do an argsort on the confidence scores, from high to low.

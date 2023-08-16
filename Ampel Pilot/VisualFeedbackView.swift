@@ -7,7 +7,9 @@
 //
 
 import UIKit
+// import SwiftUI
 
+@available(iOS 13.0, *)
 class VisualFeedbackView: UIView {
     
     private let phaseLabel: UILabel = {
@@ -16,7 +18,7 @@ class VisualFeedbackView: UIView {
         l.textColor = .black
         l.adjustsFontForContentSizeCategory = true
         l.translatesAutoresizingMaskIntoConstraints = false
-        l.text = "No traffic light detected" // original Keine Ampel erkannt
+        l.text = "No traffic light detected" // original translation Keine Ampel erkannt
         l.accessibilityTraits = UIAccessibilityTraitUpdatesFrequently
         
         return l

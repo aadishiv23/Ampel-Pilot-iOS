@@ -96,12 +96,24 @@ public class VideoCapture: NSObject {
         return true
     }
     
-    public func start() {
+    /*public func start() {
         if !captureSession.isRunning {
             captureSession.startRunning()
             self.delegate?.videoCaptureDidStart(self)
         }
+    }*/
+    
+    public func start() {
+        queue.async {
+            if !self.captureSession.isRunning {
+                self.captureSession.startRunning()
+                DispatchQueue.main.async {
+                    self.delegate?.videoCaptureDidStart(self)
+                }
+            }
+        }
     }
+
     
     public func stop() {
         if captureSession.isRunning {
