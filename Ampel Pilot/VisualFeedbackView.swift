@@ -35,10 +35,10 @@ class VisualFeedbackView: UIView {
         switch phase {
         case .green:
             backgroundColor = .green
-            phaseLabel.text = "Green"
+            phaseLabel.text = "Green: Cross safely"
         case .red:
             backgroundColor = .red
-            phaseLabel.text = "Red"
+            phaseLabel.text = "Red: Do not cross"
         case .none:
             backgroundColor = .clear
             phaseLabel.text = "No traffic light detected"
